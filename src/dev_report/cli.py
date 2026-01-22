@@ -41,6 +41,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only show last 30 days",
     )
+    parser.add_argument(
+        "--no-prs",
+        action="store_true",
+        help="Skip fetching PR statistics (faster)",
+    )
 
     return parser.parse_args()
 
@@ -165,13 +170,18 @@ def main() -> None:
 
     # Analyze all repos once with the earliest date
     all_repo_stats = analyze_repos_parallel(repos, author_emails, earliest_since, console)
-    all_repo_prs = fetch_prs_parallel(repos, earliest_since, console)
 
-    # Collect warnings
-    for pr_result in all_repo_prs:
-        if pr_result.error:
-            warnings.append(pr_result.error)
-            break  # Only show first warning
+    # Fetch PRs unless --no-prs flag is set
+    if args.no_prs:
+        all_repo_prs = [RepoPRs(repo_path=r, repo_name=r.name, owner="", prs_opened=[], prs_merged=[]) for r in repos]
+    else:
+        all_repo_prs = fetch_prs_parallel(repos, earliest_since, console)
+
+        # Collect warnings
+        for pr_result in all_repo_prs:
+            if pr_result.error:
+                warnings.append(pr_result.error)
+                break  # Only show first warning
 
     # Build period stats by filtering results
     period_stats: list[PeriodStats] = []

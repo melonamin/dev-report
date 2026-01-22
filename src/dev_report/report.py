@@ -54,27 +54,15 @@ def fmt(n: int) -> str:
     return f"{n:,}"
 
 
-def format_lines(added: int, removed: int, pad_to: int = 0) -> Text:
-    """Format lines added/removed with colors."""
+def format_lines(added: int, removed: int, pad_added: int = 0, pad_removed: int = 0) -> Text:
+    """Format lines added/removed with colors and alignment."""
     added_str = f"+{fmt(added)}"
     removed_str = f"-{fmt(removed)}"
 
-    # Calculate padding for alignment
-    # Format: "+1,234 / -567" - we want the whole thing right-aligned
-    content = f"{added_str} / {removed_str}"
-    if pad_to > 0:
-        content = content.rjust(pad_to)
-        # Find where the actual numbers start after padding
-        padding = len(content) - len(f"{added_str} / {removed_str}")
-    else:
-        padding = 0
-
     text = Text()
-    if padding > 0:
-        text.append(" " * padding)
-    text.append(added_str, style="green")
+    text.append(added_str.rjust(pad_added) if pad_added else added_str, style="green")
     text.append(" / ")
-    text.append(removed_str, style="red")
+    text.append(removed_str.rjust(pad_removed) if pad_removed else removed_str, style="red")
     return text
 
 
@@ -119,10 +107,8 @@ def render_period(console: Console, period: PeriodStats) -> None:
 
         # Calculate max widths for alignment
         sorted_repos = sorted(active_repos, key=lambda r: r.total_commits, reverse=True)
-        max_lines_width = max(
-            len(f"+{fmt(r.lines_added)} / -{fmt(r.lines_removed)}")
-            for r in sorted_repos
-        )
+        max_added_width = max(len(f"+{fmt(r.lines_added)}") for r in sorted_repos)
+        max_removed_width = max(len(f"-{fmt(r.lines_removed)}") for r in sorted_repos)
 
         table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         table.add_column("Repo", style="cyan", no_wrap=True)
@@ -133,7 +119,7 @@ def render_period(console: Console, period: PeriodStats) -> None:
             table.add_row(
                 repo.name,
                 f"{fmt(repo.total_commits)} commits",
-                format_lines(repo.lines_added, repo.lines_removed, pad_to=max_lines_width),
+                format_lines(repo.lines_added, repo.lines_removed, max_added_width, max_removed_width),
             )
 
         console.print(table)
