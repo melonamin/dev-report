@@ -49,12 +49,32 @@ class PeriodStats:
         return sum(len(r.prs_merged) for r in self.repo_prs)
 
 
-def format_lines(added: int, removed: int) -> Text:
+def fmt(n: int) -> str:
+    """Format number with thousands separator."""
+    return f"{n:,}"
+
+
+def format_lines(added: int, removed: int, pad_to: int = 0) -> Text:
     """Format lines added/removed with colors."""
+    added_str = f"+{fmt(added)}"
+    removed_str = f"-{fmt(removed)}"
+
+    # Calculate padding for alignment
+    # Format: "+1,234 / -567" - we want the whole thing right-aligned
+    content = f"{added_str} / {removed_str}"
+    if pad_to > 0:
+        content = content.rjust(pad_to)
+        # Find where the actual numbers start after padding
+        padding = len(content) - len(f"{added_str} / {removed_str}")
+    else:
+        padding = 0
+
     text = Text()
-    text.append(f"+{added}", style="green")
+    if padding > 0:
+        text.append(" " * padding)
+    text.append(added_str, style="green")
     text.append(" / ")
-    text.append(f"-{removed}", style="red")
+    text.append(removed_str, style="red")
     return text
 
 
@@ -72,14 +92,14 @@ def render_period(console: Console, period: PeriodStats) -> None:
     # Summary line
     summary = Text()
     summary.append("Commits: ", style="bold")
-    summary.append(f"{period.total_commits}")
+    summary.append(fmt(period.total_commits))
     if period.repos_with_commits > 0:
         summary.append(f" across {period.repos_with_commits} repo(s)")
 
     summary.append("  |  PRs Opened: ", style="bold")
-    summary.append(f"{period.prs_opened}")
+    summary.append(fmt(period.prs_opened))
     summary.append("  |  PRs Merged: ", style="bold")
-    summary.append(f"{period.prs_merged}")
+    summary.append(fmt(period.prs_merged))
 
     console.print(summary)
 
@@ -89,7 +109,7 @@ def render_period(console: Console, period: PeriodStats) -> None:
         lines_summary.append("Lines: ", style="bold")
         lines_summary.append_text(format_lines(period.lines_added, period.lines_removed))
         lines_summary.append("  |  Files: ", style="bold")
-        lines_summary.append(f"{period.files_changed}")
+        lines_summary.append(fmt(period.files_changed))
         console.print(lines_summary)
 
     # Per-repo breakdown (only repos with activity)
@@ -97,16 +117,23 @@ def render_period(console: Console, period: PeriodStats) -> None:
     if active_repos:
         console.print()
 
+        # Calculate max widths for alignment
+        sorted_repos = sorted(active_repos, key=lambda r: r.total_commits, reverse=True)
+        max_lines_width = max(
+            len(f"+{fmt(r.lines_added)} / -{fmt(r.lines_removed)}")
+            for r in sorted_repos
+        )
+
         table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         table.add_column("Repo", style="cyan", no_wrap=True)
         table.add_column("Commits", justify="right")
         table.add_column("Lines", justify="right")
 
-        for repo in sorted(active_repos, key=lambda r: r.total_commits, reverse=True):
+        for repo in sorted_repos:
             table.add_row(
                 repo.name,
-                f"{repo.total_commits} commit(s)",
-                format_lines(repo.lines_added, repo.lines_removed),
+                f"{fmt(repo.total_commits)} commits",
+                format_lines(repo.lines_added, repo.lines_removed, pad_to=max_lines_width),
             )
 
         console.print(table)
